@@ -1,0 +1,74 @@
+[tool.poetry]
+name = "embeddings-service"
+version = "0.1.0"
+description = "FastAPI service for managing embeddings models"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.117.0"
+uvicorn = {extras = ["standard"], version = "^0.36.0"}
+pydantic = "^2.11.0"
+pydantic-settings = "^2.7.0"
+asyncpg = "^0.30.0"
+langchain = "^0.3.0"
+langchain-ollama = "^0.3.0"
+pandas = "^2.2.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.0"
+pytest-asyncio = "^1.2.0"
+pytest-cov = "^7.0.0"
+ruff = "^0.13.0"
+mypy = "^1.18.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-v --strict-markers --strict-config"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]

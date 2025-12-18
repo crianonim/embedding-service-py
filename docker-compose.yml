@@ -1,0 +1,40 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=Embeddings Service
+      - VERSION=0.1.0
+      - API_V1_STR=/v1
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/embeddings
+    volumes:
+      - ./config.env:/app/config.env:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: google/alloydbomni:16.8.0
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: embeddings
+    volumes:
+      - ./db-data/:/var/lib/postgresql/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
