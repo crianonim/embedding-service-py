@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -7,9 +7,17 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/v1"
 
     # Database settings
-    DATABASE_URL: str = "postgresql://postgres:postgres@db:5432/embeddings"
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/embeddings"
 
-    model_config = {"case_sensitive": True, "env_file": "config.env"}
+    # Ollama settings
+    OLLAMA_URL: str = "http://localhost:11434"
+
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=("config.env", "config.local.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()

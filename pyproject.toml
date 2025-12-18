@@ -2,9 +2,7 @@
 name = "embeddings-service"
 version = "0.1.0"
 description = "FastAPI service for managing embeddings models"
-authors = ["Your Name <your.email@example.com>"]
-readme = "README.md"
-packages = [{include = "app"}]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"

@@ -1,5 +1,6 @@
 # Database
 db-data/
+model_files/
 
 # Python
 __pycache__/
@@ -29,8 +30,8 @@ venv/
 ENV/
 env/
 
-# Poetry
-poetry.lock
+# Local config (keep config.env for Docker defaults)
+config.local.env
 
 # IDE
 .idea/

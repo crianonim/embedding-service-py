@@ -51,6 +51,24 @@ async def init_db() -> None:
             )
         """)
 
+        # Migration: Add unique constraint on content column for all existing store tables
+        store_rows = await conn.fetch("SELECT id FROM stores")
+        for row in store_rows:
+            table_name = row["id"]
+            # Check if table exists and add unique constraint if missing
+            await conn.execute(f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = '{table_name}_content_key'
+                    ) THEN
+                        ALTER TABLE {table_name}
+                        ADD CONSTRAINT {table_name}_content_key UNIQUE (content);
+                    END IF;
+                END $$;
+            """)
+
 
 async def close_db() -> None:
     """Close the database connection pool."""

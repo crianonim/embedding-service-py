@@ -2,7 +2,13 @@ from fastapi import APIRouter, HTTPException
 
 from app.core.database import get_pool
 from app.models.store import (
+    StoreBatchEmbedRequest,
+    StoreBatchEmbedResponse,
     StoreCreate,
+    StoreEmbedRequest,
+    StoreEmbedResponse,
+    StoreQueryRequest,
+    StoreQueryResponse,
     StoreResponse,
     StoreUpdate,
 )
@@ -10,8 +16,11 @@ from app.models.embeddings_model import EmbeddingsModelResponse
 from app.services.store import (
     create_store,
     delete_store,
+    embed_content,
+    embed_content_batch,
     get_all_stores,
     get_store,
+    query_store,
     update_store,
 )
 from app.services.embeddings_model import get_embeddings_model
@@ -98,4 +107,100 @@ async def delete_store_endpoint(
         if not deleted:
             raise HTTPException(
                 status_code=404, detail=f"Store with id '{store_id}' not found"
+            )
+
+
+@router.post("/{store_id}/embed", response_model=StoreEmbedResponse)
+async def embed_content_endpoint(
+    store_id: str,
+    request: StoreEmbedRequest,
+) -> StoreEmbedResponse:
+    """Embed content and store it in the store's table. Idempotent - no duplicates."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get the store to find the model
+        store = await get_store(conn, store_id)
+        if store is None:
+            raise HTTPException(
+                status_code=404, detail=f"Store with id '{store_id}' not found"
+            )
+
+        try:
+            return await embed_content(
+                conn,
+                store_id,
+                store.model,
+                request.content,
+                request.query,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to embed content: {str(e)}",
+            )
+
+
+@router.post("/{store_id}/embed/batch", response_model=StoreBatchEmbedResponse)
+async def embed_content_batch_endpoint(
+    store_id: str,
+    request: StoreBatchEmbedRequest,
+) -> StoreBatchEmbedResponse:
+    """Embed multiple items and store them in the store's table. Idempotent - no duplicates."""
+    if not request.items:
+        raise HTTPException(
+            status_code=400,
+            detail="Items list cannot be empty",
+        )
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get the store to find the model
+        store = await get_store(conn, store_id)
+        if store is None:
+            raise HTTPException(
+                status_code=404, detail=f"Store with id '{store_id}' not found"
+            )
+
+        try:
+            return await embed_content_batch(
+                conn,
+                store_id,
+                store.model,
+                request.items,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to embed content: {str(e)}",
+            )
+
+
+@router.post("/{store_id}/query", response_model=StoreQueryResponse)
+async def query_store_endpoint(
+    store_id: str,
+    request: StoreQueryRequest,
+) -> StoreQueryResponse:
+    """Query the store for the most similar content using vector similarity search."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get the store to find the model
+        store = await get_store(conn, store_id)
+        if store is None:
+            raise HTTPException(
+                status_code=404, detail=f"Store with id '{store_id}' not found"
+            )
+
+        try:
+            return await query_store(
+                conn,
+                store_id,
+                store.model,
+                request.query,
+                limit=request.limit,
+                max_distance=request.distance,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to query store: {str(e)}",
             )

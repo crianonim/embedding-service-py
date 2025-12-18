@@ -10,6 +10,7 @@ services:
       - VERSION=0.1.0
       - API_V1_STR=/v1
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/embeddings
+      - OLLAMA_URL=http://ollama:11434
     volumes:
       - ./config.env:/app/config.env:ro
     depends_on:
@@ -21,6 +22,8 @@ services:
     image: google/alloydbomni:16.8.0
     restart: always
     shm_size: 128mb
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -32,6 +35,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports: ["11434:11434"]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    pull_policy: always
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - ./model_files:/root/.ollama
 
   adminer:
     image: adminer
