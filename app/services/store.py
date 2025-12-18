@@ -1,3 +1,4 @@
+import json
 import re
 
 import asyncpg
@@ -40,7 +41,8 @@ async def create_store(
         CREATE TABLE IF NOT EXISTS {table_name} (
             id SERIAL PRIMARY KEY,
             content TEXT NOT NULL UNIQUE,
-            embedding vector({dimensions})
+            embedding vector({dimensions}),
+            metadata JSON
         )
     """)
 
@@ -108,6 +110,7 @@ async def embed_content(
     model_id: str,
     content: str,
     query: str | None = None,
+    metadata: dict | None = None,
 ) -> StoreEmbedResponse:
     """Embed content and store it in the store's table. Idempotent - skips duplicates."""
     table_name = _validate_table_name(store_id)
@@ -136,14 +139,16 @@ async def embed_content(
     embedding_str = "[" + ",".join(str(x) for x in embedding_response.embedding) + "]"
 
     # Insert into the store's table
+    metadata_json = json.dumps(metadata) if metadata else None
     row = await conn.fetchrow(
         f"""
-        INSERT INTO {table_name} (content, embedding)
-        VALUES ($1, $2::vector)
+        INSERT INTO {table_name} (content, embedding, metadata)
+        VALUES ($1, $2::vector, $3::json)
         RETURNING id
         """,
         content,
         embedding_str,
+        metadata_json,
     )
 
     return StoreEmbedResponse(
@@ -211,16 +216,18 @@ async def embed_content_batch(
     for i, (original_idx, item) in enumerate(new_items):
         embedding = embeddings_response.embeddings[i].embedding
         embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+        metadata_json = json.dumps(item.metadata) if item.metadata else None
 
         row = await conn.fetchrow(
             f"""
-            INSERT INTO {table_name} (content, embedding)
-            VALUES ($1, $2::vector)
+            INSERT INTO {table_name} (content, embedding, metadata)
+            VALUES ($1, $2::vector, $3::json)
             ON CONFLICT (content) DO NOTHING
             RETURNING id
             """,
             item.content,
             embedding_str,
+            metadata_json,
         )
 
         if row:
@@ -257,6 +264,13 @@ async def embed_content_batch(
     )
 
 
+def _validate_metadata_key(key: str) -> str:
+    """Validate metadata key to prevent SQL injection."""
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", key):
+        raise ValueError(f"Invalid metadata key: {key}")
+    return key
+
+
 async def query_store(
     conn: asyncpg.Connection,
     store_id: str,
@@ -264,6 +278,7 @@ async def query_store(
     query: str,
     limit: int = 10,
     max_distance: float | None = None,
+    metadata_filters: dict | None = None,
 ) -> StoreQueryResponse:
     """Query the store for the most similar content to the query."""
     table_name = _validate_table_name(store_id)
@@ -275,31 +290,40 @@ async def query_store(
     # Convert embedding list to PostgreSQL vector format
     embedding_str = "[" + ",".join(str(x) for x in embedding_response.embedding) + "]"
 
-    # Query for top results using cosine distance
+    # Build WHERE clause
+    where_conditions = []
+    params = [embedding_str]
+    param_idx = 2
+
     if max_distance is not None:
-        rows = await conn.fetch(
-            f"""
-            SELECT id, content, embedding <=> $1::vector AS distance
-            FROM {table_name}
-            WHERE embedding <=> $1::vector <= $2
-            ORDER BY distance
-            LIMIT $3
-            """,
-            embedding_str,
-            max_distance,
-            limit,
-        )
-    else:
-        rows = await conn.fetch(
-            f"""
-            SELECT id, content, embedding <=> $1::vector AS distance
-            FROM {table_name}
-            ORDER BY distance
-            LIMIT $2
-            """,
-            embedding_str,
-            limit,
-        )
+        where_conditions.append(f"embedding <=> $1::vector <= ${param_idx}")
+        params.append(max_distance)
+        param_idx += 1
+
+    if metadata_filters:
+        for key, value in metadata_filters.items():
+            validated_key = _validate_metadata_key(key)
+            where_conditions.append(f"metadata ->> '{validated_key}' = ${param_idx}")
+            params.append(str(value))
+            param_idx += 1
+
+    where_clause = ""
+    if where_conditions:
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+
+    params.append(limit)
+    limit_param = f"${param_idx}"
+
+    rows = await conn.fetch(
+        f"""
+        SELECT id, content, embedding <=> $1::vector AS distance
+        FROM {table_name}
+        {where_clause}
+        ORDER BY distance
+        LIMIT {limit_param}
+        """,
+        *params,
+    )
 
     results = [
         StoreQueryResult(

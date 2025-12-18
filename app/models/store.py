@@ -29,6 +29,7 @@ class StoreEmbedRequest(BaseModel):
 
     content: str = Field(..., description="Content to store and embed")
     query: str | None = Field(None, description="Optional query text to use for embedding instead of content")
+    metadata: dict | None = Field(None, description="Optional JSON metadata to store with the content")
 
 
 class StoreEmbedResponse(BaseModel):
@@ -61,6 +62,7 @@ class StoreQueryRequest(BaseModel):
     query: str = Field(..., description="Query text to search for")
     limit: int = Field(10, ge=1, le=100, description="Maximum number of results to return")
     distance: float | None = Field(None, ge=0, le=2, description="Maximum cosine distance (filters out results above this value)")
+    metadata: dict | None = Field(None, description="Optional metadata equality filters")
 
 
 class StoreQueryResult(BaseModel):

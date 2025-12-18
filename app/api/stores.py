@@ -132,6 +132,7 @@ async def embed_content_endpoint(
                 store.model,
                 request.content,
                 request.query,
+                request.metadata,
             )
         except Exception as e:
             raise HTTPException(
@@ -198,6 +199,7 @@ async def query_store_endpoint(
                 request.query,
                 limit=request.limit,
                 max_distance=request.distance,
+                metadata_filters=request.metadata,
             )
         except Exception as e:
             raise HTTPException(
