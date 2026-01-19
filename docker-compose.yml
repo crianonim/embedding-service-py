@@ -11,8 +11,12 @@ services:
       - API_V1_STR=/v1
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/embeddings
       - OLLAMA_URL=http://ollama:11434
+      - CLOUDSDK_CONFIG=/app/.config/gcloud
+      - GOOGLE_CLOUD_PROJECT_ID=<YOUR_PROJECT_ID> # fill in your project id
+      - GOOGLE_CLOUD_PROJECT=<YOUR_PROJECT_ID> # fill in your project id
     volumes:
       - ./config.env:/app/config.env:ro
+      - ${HOME}/.config/gcloud:/app/.config/gcloud:ro
     depends_on:
       db:
         condition: service_healthy

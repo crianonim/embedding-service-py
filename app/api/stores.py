@@ -126,7 +126,7 @@ async def embed_content_endpoint(
             )
 
         try:
-            return await embed_content(
+            result = await embed_content(
                 conn,
                 store_id,
                 store.model,
@@ -134,6 +134,14 @@ async def embed_content_endpoint(
                 request.query,
                 request.metadata,
             )
+            if result is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Content cannot be empty",
+                )
+            return result
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,

@@ -1,4 +1,5 @@
 from langchain_ollama import OllamaEmbeddings
+from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
 from app.core.config import settings
 from app.models.embedding import (
@@ -7,27 +8,49 @@ from app.models.embedding import (
     EmbeddingResponse,
 )
 
+# Known Vertex AI embedding models
+VERTEX_AI_MODELS = {"text-embedding-005", "text-embedding-004", "text-multilingual-embedding-002"}
+
 
 class EmbeddingsService:
-    """Service for creating embeddings using Ollama models."""
+    """Service for creating embeddings using Ollama or Vertex AI models."""
 
-    def __init__(self, base_url: str = "http://localhost:11434"):
-        self._base_url = base_url
-        self._models: dict[str, OllamaEmbeddings] = {}
+    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+        self._ollama_base_url = ollama_base_url
+        self._ollama_models: dict[str, OllamaEmbeddings] = {}
+        self._vertex_models: dict[str, TextEmbeddingModel] = {}
 
-    def _get_model(self, model_id: str) -> OllamaEmbeddings:
-        """Get or create an OllamaEmbeddings instance for the given model."""
-        if model_id not in self._models:
-            self._models[model_id] = OllamaEmbeddings(
+    def _is_vertex_model(self, model_id: str) -> bool:
+        """Check if model_id is a Vertex AI model."""
+        return model_id in VERTEX_AI_MODELS
+
+    def _get_ollama_model(self, model_id: str) -> OllamaEmbeddings:
+        """Get or create an Ollama embeddings instance."""
+        if model_id not in self._ollama_models:
+            self._ollama_models[model_id] = OllamaEmbeddings(
                 model=model_id,
-                base_url=self._base_url,
+                base_url=self._ollama_base_url,
             )
-        return self._models[model_id]
+        return self._ollama_models[model_id]
+
+    def _get_vertex_model(self, model_id: str) -> TextEmbeddingModel:
+        """Get or create a Vertex AI embeddings model."""
+        if model_id not in self._vertex_models:
+            self._vertex_models[model_id] = TextEmbeddingModel.from_pretrained(model_id)
+        return self._vertex_models[model_id]
 
     async def embed_query(self, model_id: str, query: str) -> EmbeddingResponse:
         """Create an embedding for a single query."""
-        model = self._get_model(model_id)
-        embedding = await model.aembed_query(query)
+        if self._is_vertex_model(model_id):
+            vertex_model = self._get_vertex_model(model_id)
+            inputs: list[str | TextEmbeddingInput] = [
+                TextEmbeddingInput(query, "RETRIEVAL_QUERY")
+            ]
+            result = vertex_model.get_embeddings(inputs)
+            embedding = result[0].values
+        else:
+            ollama_model = self._get_ollama_model(model_id)
+            embedding = await ollama_model.aembed_query(query)
 
         return EmbeddingResponse(
             model=model_id,
@@ -39,8 +62,16 @@ class EmbeddingsService:
         self, model_id: str, documents: list[str]
     ) -> DocumentsEmbeddingResponse:
         """Create embeddings for a list of documents."""
-        model = self._get_model(model_id)
-        embeddings = await model.aembed_documents(documents)
+        if self._is_vertex_model(model_id):
+            vertex_model = self._get_vertex_model(model_id)
+            inputs: list[str | TextEmbeddingInput] = [
+                TextEmbeddingInput(doc, "RETRIEVAL_DOCUMENT") for doc in documents
+            ]
+            result = vertex_model.get_embeddings(inputs)
+            embeddings = [r.values for r in result]
+        else:
+            ollama_model = self._get_ollama_model(model_id)
+            embeddings = await ollama_model.aembed_documents(documents)
 
         document_embeddings = [
             DocumentEmbedding(index=i, embedding=emb)
@@ -65,5 +96,5 @@ def get_embeddings_service() -> EmbeddingsService:
     """Get or create the global embeddings service instance."""
     global _embeddings_service
     if _embeddings_service is None:
-        _embeddings_service = EmbeddingsService(base_url=settings.OLLAMA_URL)
+        _embeddings_service = EmbeddingsService(ollama_base_url=settings.OLLAMA_URL)
     return _embeddings_service

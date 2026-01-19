@@ -111,8 +111,15 @@ async def embed_content(
     content: str,
     query: str | None = None,
     metadata: dict | None = None,
-) -> StoreEmbedResponse:
-    """Embed content and store it in the store's table. Idempotent - skips duplicates."""
+) -> StoreEmbedResponse | None:
+    """Embed content and store it in the store's table. Idempotent - skips duplicates.
+
+    Returns None if content is empty.
+    """
+    # Skip empty content
+    if not content or not content.strip():
+        return None
+
     table_name = _validate_table_name(store_id)
 
     # Check if content already exists
@@ -170,6 +177,17 @@ async def embed_content_batch(
     results: list[StoreEmbedResponse] = []
     created_count = 0
     skipped_count = 0
+
+    # Filter out items with empty content
+    items = [item for item in items if item.content and item.content.strip()]
+
+    if not items:
+        return StoreBatchEmbedResponse(
+            results=[],
+            total=0,
+            created=0,
+            skipped=0,
+        )
 
     # Get existing content to skip duplicates
     contents = [item.content for item in items]
